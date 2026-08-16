@@ -547,6 +547,27 @@
 </head>
 <body>
 
+<!-- ============ ACCESS LOCK SCREEN ============ -->
+<div id="lockScreen" style="position:fixed; inset:0; background:#0B0D10; z-index:200; display:flex; align-items:center; justify-content:center;">
+  <div style="width:340px; max-width:88vw; text-align:center;">
+    <svg width="34" height="34" viewBox="0 0 32 32" fill="none" style="margin-bottom:16px;">
+      <path d="M16 2 L28 9 V23 L16 30 L4 23 V9 Z" stroke="#FFB238" stroke-width="1.6" fill="rgba(255,178,56,0.08)"/>
+      <circle cx="16" cy="16" r="2.4" fill="#FFB238"/>
+      <circle cx="16" cy="9" r="1.6" fill="#FFB238" opacity="0.7"/>
+      <circle cx="22" cy="19.5" r="1.6" fill="#FFB238" opacity="0.7"/>
+      <circle cx="10" cy="19.5" r="1.6" fill="#FFB238" opacity="0.7"/>
+      <line x1="16" y1="16" x2="16" y2="9" stroke="#FFB238" stroke-width="1" opacity="0.5"/>
+      <line x1="16" y1="16" x2="22" y2="19.5" stroke="#FFB238" stroke-width="1" opacity="0.5"/>
+      <line x1="16" y1="16" x2="10" y2="19.5" stroke="#FFB238" stroke-width="1" opacity="0.5"/>
+    </svg>
+    <div style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; color:#ECEEF0; margin-bottom:6px;">FreeAI</div>
+    <div style="font-size:13px; color:#9AA0A8; margin-bottom:18px;">Enter the access code to continue.</div>
+    <input type="password" id="lockInput" placeholder="Access code" style="width:100%; padding:11px 13px; background:#15181C; border:1px solid #262B31; border-radius:10px; color:#ECEEF0; font-size:14px; outline:none; text-align:center;" onkeydown="if(event.key==='Enter') submitLockCode()">
+    <button onclick="submitLockCode()" style="width:100%; margin-top:10px; padding:11px; background:#FFB238; color:#241800; border:none; border-radius:10px; font-weight:600; font-size:13.5px; cursor:pointer;">Continue</button>
+    <div id="lockError" style="color:#FF6B6B; font-size:12px; margin-top:10px; min-height:14px;"></div>
+  </div>
+</div>
+
 <div class="app">
 
   <!-- ============ SIDEBAR ============ -->
@@ -1040,13 +1061,21 @@ async function callModel(messages, agent, thinkLevel){
   try{
     const res = await fetch('/api/chat', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json' },
+      headers:{
+        'Content-Type':'application/json',
+        'x-access-code': localStorage.getItem('freeai_access_code') || ''
+      },
       body: JSON.stringify({
         model: agent.id, // OpenRouter model slug, e.g. 'nvidia/nemotron-3-super-120b-a12b:free'
         reasoning: { effort: thinkLevel.toLowerCase() }, // supported by reasoning-capable models; ignored otherwise
         messages: messages.map(m=>({role:m.role, content:m.text}))
       })
     });
+    if(res.status===401){
+      localStorage.removeItem('freeai_access_code');
+      showLockScreen('That code stopped working. Enter it again.');
+      return "Access code needed — enter it in the screen that just appeared.";
+    }
     if(!res.ok){
       const errText = await res.text().catch(()=> '');
       return `The proxy returned an error (${res.status}). ${errText.slice(0,200)}\n\nIf you're testing by opening this file directly in a browser (not deployed on Vercel yet), this is expected — /api/chat only works once it's deployed.`;
@@ -1057,6 +1086,29 @@ async function callModel(messages, agent, thinkLevel){
     return `Couldn't reach the proxy (${err.message}). If you're opening this file locally, /api/chat won't work until it's deployed on Vercel — that's expected at this stage.`;
   }
 }
+
+/* ---------- access lock screen ---------- */
+function showLockScreen(errorMsg){
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('lockError').textContent = errorMsg || '';
+  document.getElementById('lockInput').value = '';
+  document.getElementById('lockInput').focus();
+}
+function submitLockCode(){
+  const code = document.getElementById('lockInput').value.trim();
+  if(!code){
+    document.getElementById('lockError').textContent = 'Enter a code to continue.';
+    return;
+  }
+  localStorage.setItem('freeai_access_code', code);
+  document.getElementById('lockScreen').style.display = 'none';
+}
+(function initLock(){
+  const saved = localStorage.getItem('freeai_access_code');
+  if(saved){
+    document.getElementById('lockScreen').style.display = 'none';
+  }
+})();
 
 /* ---------- settings modal (informational now — key lives server-side) ---------- */
 function openSettings(){

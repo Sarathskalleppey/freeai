@@ -3,11 +3,20 @@
 // below is never visible to anyone using the app.
 //
 // Setup: in your Vercel project, go to Settings -> Environment Variables
-// and add OPENROUTER_API_KEY with your real key as the value.
+// and add:
+//   OPENROUTER_API_KEY  — your real OpenRouter key
+//   ACCESS_CODE         — a password you make up and share only with friends
+// (If ACCESS_CODE isn't set, the check below is skipped — useful while testing.)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const requiredCode = process.env.ACCESS_CODE;
+  const givenCode = req.headers['x-access-code'];
+  if (requiredCode && givenCode !== requiredCode) {
+    return res.status(401).json({ error: 'Invalid access code.' });
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
