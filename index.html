@@ -266,6 +266,17 @@
     padding:0 20px;
   }
 
+  /* Composer dock — a fixed footer outside the scrollable content, so the
+     composer always stays pinned to the bottom of the page (like Claude),
+     never drifting to the middle regardless of hero/thread height. */
+  .composer-dock{
+    flex-shrink:0;
+    width:100%;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 20px 22px 20px;
+    background:var(--bg);
+  }
+
   /* Hero / greeting */
   .hero{
     width:100%; max-width:720px;
@@ -296,7 +307,7 @@
   /* Composer */
   .composer-wrap{
     width:100%; max-width:720px;
-    margin-top:26px;
+    margin-top:14px;
     flex-shrink:0;
   }
   .attach-chips{
@@ -432,7 +443,14 @@
   .attach-opt:hover{background:var(--bg-elev-3);}
   .attach-opt .chip-badge{width:34px; text-align:center;}
 
-  .agent-panel{width:320px; padding:8px; max-height:min(420px, 55vh); overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--bg-elev-3) transparent;}
+  .agent-panel{
+    width:320px; padding:8px 4px 8px 8px;
+    max-height:min(420px, calc(100vh - 120px));
+    overflow-y:auto;
+    scrollbar-width:thin; scrollbar-color:var(--text-faint) transparent;
+  }
+  .agent-panel::-webkit-scrollbar{width:6px;}
+  .agent-panel::-webkit-scrollbar-thumb{background:var(--text-faint); border-radius:6px;}
   .agent-opt{
     display:flex; align-items:flex-start; gap:10px;
     padding:10px 9px; border-radius:var(--radius-sm);
@@ -513,10 +531,6 @@
   .typing span:nth-child(2){animation-delay:0.15s;}
   .typing span:nth-child(3){animation-delay:0.3s;}
   @keyframes bounce{0%,60%,100%{transform:translateY(0); opacity:0.5;} 30%{transform:translateY(-4px); opacity:1;}}
-
-  .composer-wrap.docked{
-    max-width:720px; margin:0 auto 22px auto; width:100%;
-  }
 
   /* Settings modal */
   .modal-overlay{
@@ -698,7 +712,7 @@
       <div class="avatar">SS</div>
       <div class="side-footer-text">
         <div class="side-footer-name">Sarath Sreekumar</div>
-        <div class="side-footer-plan">Free plan · <a href="#">Upgrade</a></div>
+        <div class="side-footer-plan">Free plan</div>
       </div>
       <button class="side-footer-gear" title="Settings" onclick="openSettings()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04z"/></svg>
@@ -738,7 +752,11 @@
       </div>
 
       <div class="thread" id="thread"></div>
+    </div>
 
+    <!-- Composer is a fixed footer, outside the scrollable message area,
+         so it always stays pinned to the bottom of the page. -->
+    <div class="composer-dock">
       <div class="composer-wrap" id="composerWrap">
         <div class="attach-chips" id="attachChips"></div>
 
@@ -1356,10 +1374,15 @@ async function callModel(messages, agent, thinkLevel, webSearch, language){
       messages: chatMessages
     };
     if(webSearch){
-      // OpenRouter server-side web search tool — the model decides when to
-      // actually search, then answers using live results. Requires a model
-      // that supports tool calling; not every free model does.
-      body.tools = [{ type:'openrouter:web_search', parameters:{ max_results:5 } }];
+      // OpenRouter's native web-search augmentation. This is a `plugins`
+      // entry, not a `tools` entry — `tools` is for model-side function
+      // calling, which most free/open-weight models don't support, and
+      // "openrouter:web_search" was never a real tool type (it was
+      // silently ignored, which is why answers looked unsearched and the
+      // model sometimes hallucinated citation-looking text instead).
+      // The plugin approach runs server-side on OpenRouter regardless of
+      // whether the model itself supports tool calling.
+      body.plugins = [{ id:'web', max_results:5 }];
     }
     const res = await fetch('/api/chat', {
       method:'POST',
@@ -1376,8 +1399,8 @@ async function callModel(messages, agent, thinkLevel, webSearch, language){
     }
     if(!res.ok){
       const errText = await res.text().catch(()=> '');
-      if(webSearch && /tool/i.test(errText)){
-        return `This model doesn't support the web search tool. Turn off the search toggle, or switch to a model with tool-calling support (most current flagship models have it), then try again.`;
+      if(webSearch && /plugin|web/i.test(errText)){
+        return `The web search plugin request failed. Turn off the search toggle and try again, or check the proxy error: ${errText.slice(0,200)}`;
       }
       return `The proxy returned an error (${res.status}). ${errText.slice(0,200)}\n\nIf you're testing by opening this file directly in a browser (not deployed on Vercel yet), this is expected — /api/chat only works once it's deployed.`;
     }

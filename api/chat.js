@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { model, messages, reasoning, tools } = req.body || {};
+  const { model, messages, reasoning, tools, plugins } = req.body || {};
   if (!model || !messages) {
     return res.status(400).json({ error: 'Missing model or messages in request.' });
   }
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
         'HTTP-Referer': 'https://freeai.vercel.app', // fine to leave as-is
         'X-Title': 'FreeAI'
       },
-      body: JSON.stringify({ model, messages, reasoning, tools })
+      body: JSON.stringify({ model, messages, reasoning, tools, plugins })
     });
 
     const data = await orResponse.json();
