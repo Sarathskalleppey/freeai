@@ -6,8 +6,19 @@
 <title>FreeAI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  // Applied before first paint so switching themes doesn't flash the old one.
+  (function(){
+    var saved = localStorage.getItem('freeai_theme') || 'dark';
+    var effective = saved;
+    if(saved === 'system'){
+      effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'browser';
+    }
+    document.documentElement.setAttribute('data-theme', effective);
+  })();
+</script>
 <style>
-  :root{
+  :root, html[data-theme="dark"]{
     --bg:#0B0D10;
     --bg-side:#0E1013;
     --bg-elev:#15181C;
@@ -24,12 +35,46 @@
     --teal:#4FD1C5;
     --violet:#9B8CFF;
     --danger:#FF6B6B;
+    --topbar-bg:transparent;
+    --topbar-fg:var(--text-dim);
+    --topbar-fg-dim:var(--text-faint);
+    --topbar-pill-bg:var(--bg-elev);
     --radius-lg:20px;
     --radius-md:12px;
     --radius-sm:8px;
     --font-display:'Space Grotesk', sans-serif;
     --font-body:'Inter', sans-serif;
     --font-mono:'JetBrains Mono', monospace;
+  }
+  /* Claude-style theme — warm cream background, terracotta accent */
+  html[data-theme="claude"]{
+    --bg:#F5F1EA; --bg-side:#EEE8DB; --bg-elev:#FFFFFF; --bg-elev-2:#F1EBDD;
+    --bg-elev-3:#E6DEC9; --border:#E0D6BF; --border-soft:#EAE2CE;
+    --text:#3D3929; --text-dim:#6B6656; --text-faint:#A39C89;
+    --accent:#C15F3C; --accent-2:#D97757; --accent-soft:rgba(193,95,60,0.14);
+    --danger:#D14D4D;
+    --topbar-bg:transparent; --topbar-fg:var(--text-dim); --topbar-fg-dim:var(--text-faint);
+    --topbar-pill-bg:var(--bg-elev);
+  }
+  /* Browser theme — plain light UI, like a stock browser chrome */
+  html[data-theme="browser"]{
+    --bg:#FFFFFF; --bg-side:#F7F7F8; --bg-elev:#FFFFFF; --bg-elev-2:#F1F3F5;
+    --bg-elev-3:#E7EAEE; --border:#DADCE0; --border-soft:#E8EAED;
+    --text:#202124; --text-dim:#5F6368; --text-faint:#9AA0A6;
+    --accent:#1A73E8; --accent-2:#1967D2; --accent-soft:rgba(26,115,232,0.12);
+    --danger:#D93025;
+    --topbar-bg:transparent; --topbar-fg:var(--text-dim); --topbar-fg-dim:var(--text-faint);
+    --topbar-pill-bg:var(--bg-elev);
+  }
+  /* Classic Blue — dark blue top bar, white page, black text */
+  html[data-theme="classic-blue"]{
+    --bg:#FFFFFF; --bg-side:#F7F9FC; --bg-elev:#FFFFFF; --bg-elev-2:#F0F3F8;
+    --bg-elev-3:#E3E8F0; --border:#D5DCE6; --border-soft:#E9EDF3;
+    --text:#000000; --text-dim:#333333; --text-faint:#6B7280;
+    --accent:#0B3D91; --accent-2:#1657B0; --accent-soft:rgba(11,61,145,0.10);
+    --danger:#C53030;
+    --topbar-bg:#0B2447; --topbar-fg:#FFFFFF; --topbar-fg-dim:#C9D6EA;
+    --topbar-pill-bg:rgba(255,255,255,0.08);
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
@@ -39,6 +84,7 @@
     font-family:var(--font-body);
     overflow:hidden;
     -webkit-font-smoothing:antialiased;
+    transition:background .2s ease, color .2s ease;
   }
   ::selection{background:var(--accent-soft); color:var(--accent);}
   button{font-family:inherit; cursor:pointer; background:none; border:none; color:inherit;}
@@ -135,6 +181,19 @@
   .project-item:hover, .chat-item:hover{background:var(--bg-elev); color:var(--text);}
   .chat-item.active{background:var(--accent-soft); color:var(--accent);}
   .chat-item.active svg{color:var(--accent);}
+  .chat-item{position:relative;}
+  .chat-item .chat-item-label{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .chat-item .chat-remove{opacity:0; margin-left:auto; flex-shrink:0; padding:2px; border-radius:4px;}
+  .chat-item:hover .chat-remove{opacity:1;}
+  .chat-item .chat-remove:hover{color:var(--danger);}
+  .project-item{position:relative;}
+  .project-item.active{background:var(--accent-soft); color:var(--accent);}
+  .project-item.active svg{color:var(--accent);}
+  .project-item .proj-label{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .project-item .proj-remove{opacity:0; margin-left:auto; flex-shrink:0; padding:2px; border-radius:4px;}
+  .project-item:hover .proj-remove{opacity:1;}
+  .project-item .proj-remove:hover{color:var(--danger);}
+  .side-empty{padding:8px 9px; font-size:12px; color:var(--text-faint);}
 
   .side-scroll{flex:1; overflow-y:auto; padding-right:2px; margin-right:-2px;}
 
@@ -167,35 +226,38 @@
   }
   .topbar{
     display:flex; align-items:center; justify-content:center;
-    padding:16px 20px 0 20px;
+    padding:16px 20px;
     position:relative;
     flex-shrink:0;
+    background:var(--topbar-bg);
+    color:var(--topbar-fg);
+    transition:background .2s ease, color .2s ease;
   }
   .menu-toggle{
-    position:absolute; left:20px; top:16px;
+    position:absolute; left:20px; top:50%; transform:translateY(-50%);
     display:none;
-    color:var(--text-dim);
+    color:var(--topbar-fg);
     padding:6px;
     border-radius:var(--radius-sm);
   }
-  .menu-toggle:hover{background:var(--bg-elev);}
+  .menu-toggle:hover{background:rgba(128,128,128,0.15);}
   .plan-pill{
     display:flex; align-items:center; gap:6px;
-    background:var(--bg-elev);
+    background:var(--topbar-pill-bg);
     border:1px solid var(--border-soft);
     padding:6px 13px;
     border-radius:999px;
     font-size:12.5px;
-    color:var(--text-dim);
+    color:var(--topbar-fg-dim);
   }
   .plan-pill a{color:var(--accent); text-decoration:none; font-weight:600;}
-  .plan-pill .dot{color:var(--text-faint);}
+  .plan-pill .dot{color:var(--topbar-fg-dim);}
   .topbar-icon{
-    position:absolute; right:20px; top:14px;
-    color:var(--text-faint);
+    position:absolute; right:20px; top:50%; transform:translateY(-50%);
+    color:var(--topbar-fg-dim);
     padding:6px;
   }
-  .topbar-icon:hover{color:var(--text-dim);}
+  .topbar-icon:hover{color:var(--topbar-fg);}
 
   .content{
     flex:1;
@@ -297,6 +359,7 @@
   }
   .icon-btn:hover{background:var(--bg-elev-2); color:var(--text);}
   .icon-btn.plus{border:1px solid var(--border); font-size:18px;}
+  .icon-btn.active{background:var(--accent-soft); color:var(--accent);}
 
   .send-btn{
     width:32px; height:32px; border-radius:50%;
@@ -369,7 +432,7 @@
   .attach-opt:hover{background:var(--bg-elev-3);}
   .attach-opt .chip-badge{width:34px; text-align:center;}
 
-  .agent-panel{width:320px; padding:8px; max-height:420px; overflow-y:auto;}
+  .agent-panel{width:320px; padding:8px; max-height:min(420px, 55vh); overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--bg-elev-3) transparent;}
   .agent-opt{
     display:flex; align-items:flex-start; gap:10px;
     padding:10px 9px; border-radius:var(--radius-sm);
@@ -477,6 +540,24 @@
     font-size:13px; outline:none;
   }
   .field input:focus{border-color:var(--accent-2);}
+  .theme-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .theme-opt{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm);
+    font-size:12.5px; color:var(--text-dim); background:var(--bg-elev-2);
+  }
+  .theme-opt:hover{border-color:var(--accent-2); color:var(--text);}
+  .theme-opt.selected{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+  .theme-swatch{
+    width:16px; height:16px; border-radius:50%; flex-shrink:0;
+    border:1px solid rgba(128,128,128,0.3);
+  }
+  .theme-swatch.dark{background:linear-gradient(135deg,#0B0D10 50%,#FFB238 50%);}
+  .theme-swatch.claude{background:linear-gradient(135deg,#F5F1EA 50%,#C15F3C 50%);}
+  .theme-swatch.browser{background:linear-gradient(135deg,#FFFFFF 50%,#1A73E8 50%);}
+  .theme-swatch.system{background:conic-gradient(#0B0D10 0 50%, #FFFFFF 50% 100%);}
+  .theme-swatch.classic-blue{background:linear-gradient(180deg,#0B2447 40%,#FFFFFF 40%);}
+  .lang-opt.selected{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
   .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
   .btn{padding:8px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:600;}
   .btn.ghost{color:var(--text-dim);}
@@ -596,54 +677,21 @@
 
     <div class="side-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" placeholder="Search chats">
+      <input type="text" id="chatSearchInput" placeholder="Search chats" oninput="renderChatList()">
     </div>
 
     <div class="side-scroll">
       <div class="side-section">
         <div class="side-section-head">
           <span>Projects</span>
-          <button title="New project" onclick="alert('Create a new project to group related chats, files, and instructions.')">
+          <button title="New project" onclick="createProject()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
-        <div class="project-item">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
-          Portfolio site
-        </div>
-        <div class="project-item">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
-          Client research
-        </div>
+        <div id="projectList"></div>
       </div>
 
-      <div class="side-section">
-        <div class="side-section-head"><span>Today</span></div>
-        <div class="chat-item active">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          New conversation
-        </div>
-      </div>
-
-      <div class="side-section">
-        <div class="side-section-head"><span>Previous 7 days</span></div>
-        <div class="chat-item">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Explain vector databases
-        </div>
-        <div class="chat-item">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Draft launch email
-        </div>
-        <div class="chat-item">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Refactor auth middleware
-        </div>
-        <div class="chat-item">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Kerala backwaters trip plan
-        </div>
-      </div>
+      <div id="chatListRoot"></div>
     </div>
 
     <div class="side-footer">
@@ -686,7 +734,7 @@
           <line x1="16" y1="16" x2="22" y2="19.5" stroke="#FFB238" stroke-width="1" opacity="0.5"/>
           <line x1="16" y1="16" x2="10" y2="19.5" stroke="#FFB238" stroke-width="1" opacity="0.5"/>
         </svg>
-        <h1 id="greeting">Evening, <span>Sarath Sreekumar</span></h1>
+        <h1 id="greeting">Hey Buddy</h1>
       </div>
 
       <div class="thread" id="thread"></div>
@@ -724,6 +772,10 @@
               </div>
               <div class="panel think-panel right" id="thinkPanel"></div>
 
+              <button class="icon-btn" id="webSearchBtn" onclick="toggleWebSearch()" title="Search the web before answering">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </button>
+
               <button class="icon-btn" title="Voice input">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
               </button>
@@ -750,10 +802,27 @@
 <!-- ============ SETTINGS MODAL ============ -->
 <div class="modal-overlay" id="settingsOverlay">
   <div class="modal">
-    <h3>About this app</h3>
-    <p class="sub">FreeAI talks to OpenRouter through a private server-side proxy — your API key lives in Vercel's environment variables, never in this page or your browser. Nothing for you to paste here. Use the model library (agent selector → "Add from OpenRouter") to add any model.</p>
+    <h3>Settings</h3>
+    <div class="field">
+      <label>Theme</label>
+      <div class="theme-grid" id="themeGrid">
+        <button class="theme-opt" id="theme-opt-dark" onclick="setTheme('dark')"><span class="theme-swatch dark"></span>Dark</button>
+        <button class="theme-opt" id="theme-opt-claude" onclick="setTheme('claude')"><span class="theme-swatch claude"></span>Claude</button>
+        <button class="theme-opt" id="theme-opt-browser" onclick="setTheme('browser')"><span class="theme-swatch browser"></span>Browser</button>
+        <button class="theme-opt" id="theme-opt-system" onclick="setTheme('system')"><span class="theme-swatch system"></span>System</button>
+        <button class="theme-opt" id="theme-opt-classic-blue" onclick="setTheme('classic-blue')" style="grid-column:1 / -1;"><span class="theme-swatch classic-blue"></span>Classic Blue (dark blue top, white page, black text)</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Response language</label>
+      <div class="theme-grid" id="langGrid">
+        <button class="theme-opt lang-opt" id="lang-opt-auto" onclick="setLanguage('auto')">Auto</button>
+        <button class="theme-opt lang-opt" id="lang-opt-en" onclick="setLanguage('en')">English</button>
+        <button class="theme-opt lang-opt" id="lang-opt-ml" onclick="setLanguage('ml')" style="grid-column:1 / -1;">മലയാളം (Malayalam)</button>
+      </div>
+    </div>
     <div class="modal-actions">
-      <button class="btn primary" onclick="closeSettings()">Got it</button>
+      <button class="btn primary" onclick="closeSettings()">Done</button>
     </div>
   </div>
 </div>
@@ -801,8 +870,74 @@ let state = {
   thinkIndex: 1, // Medium
   attachments: [],
   messages: [],
+  webSearchOn: false,
   libraryModels: null, // cached fetch from OpenRouter
+  theme: localStorage.getItem('freeai_theme') || 'dark',
+  language: localStorage.getItem('freeai_language') || 'auto',
+  chats: [],            // persisted chat history, loaded below
+  currentChatId: null,
+  projects: [],         // persisted projects, loaded below
+  activeProjectId: null,
 };
+
+/* ---------- persistence: chat history & projects (localStorage) ---------- */
+function loadPersisted(){
+  try{
+    state.chats = JSON.parse(localStorage.getItem('freeai_chats') || '[]');
+  }catch(e){ state.chats = []; }
+  try{
+    state.projects = JSON.parse(localStorage.getItem('freeai_projects') || '[]');
+  }catch(e){ state.projects = []; }
+}
+function saveChats(){
+  // Attachments carry a raw File object which cannot be persisted —
+  // strip it and keep only display metadata (type/name).
+  const safe = state.chats.map(c => ({
+    ...c,
+    messages: c.messages.map(m => ({
+      role:m.role, text:m.text,
+      attachments:(m.attachments||[]).map(a=>({type:a.type, name:a.name}))
+    }))
+  }));
+  localStorage.setItem('freeai_chats', JSON.stringify(safe));
+}
+function saveProjects(){
+  localStorage.setItem('freeai_projects', JSON.stringify(state.projects));
+}
+
+/* ---------- theme ---------- */
+function applyTheme(name){
+  let effective = name;
+  if(name === 'system'){
+    effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'browser';
+  }
+  document.documentElement.setAttribute('data-theme', effective);
+  document.querySelectorAll('.theme-opt[id^="theme-opt-"]').forEach(el=>{
+    el.classList.toggle('selected', el.id === 'theme-opt-'+name);
+  });
+}
+function setTheme(name){
+  state.theme = name;
+  localStorage.setItem('freeai_theme', name);
+  applyTheme(name);
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{
+  if(state.theme === 'system') applyTheme('system');
+});
+
+/* ---------- response language ---------- */
+function setLanguage(lang){
+  state.language = lang;
+  localStorage.setItem('freeai_language', lang);
+  document.querySelectorAll('.lang-opt[id^="lang-opt-"]').forEach(el=>{
+    el.classList.toggle('selected', el.id === 'lang-opt-'+lang);
+  });
+}
+function applyLanguageUI(){
+  document.querySelectorAll('.lang-opt[id^="lang-opt-"]').forEach(el=>{
+    el.classList.toggle('selected', el.id === 'lang-opt-'+state.language);
+  });
+}
 
 /* ---------- render pickers ---------- */
 function renderAgentPanel(){
@@ -875,6 +1010,12 @@ function selectThink(i){
   state.thinkIndex = i;
   updateComposerButtons();
   closeAllPanels();
+}
+function toggleWebSearch(){
+  state.webSearchOn = !state.webSearchOn;
+  const btn = document.getElementById('webSearchBtn');
+  btn.classList.toggle('active', state.webSearchOn);
+  btn.title = state.webSearchOn ? 'Web search is ON for your next message' : 'Search the web before answering';
 }
 
 /* ---------- panels ---------- */
@@ -965,6 +1106,7 @@ function fillPrompt(kind){
 /* ---------- sidebar / chat lifecycle ---------- */
 function newChat(){
   state.messages = [];
+  state.currentChatId = null;
   state.attachments = [];
   renderAttachChips();
   document.getElementById('composerInput').value='';
@@ -973,10 +1115,128 @@ function newChat(){
   document.getElementById('hero').style.display='flex';
   document.getElementById('suggestions').style.display='flex';
   toggleSidebar(false);
+  renderChatList();
 }
 function toggleSidebar(open){
   document.getElementById('sidebar').classList.toggle('open', open);
   document.getElementById('scrim').classList.toggle('open', open);
+}
+
+/* ---------- projects (sidebar) ---------- */
+function createProject(){
+  const name = prompt('Name your project:');
+  if(!name || !name.trim()) return;
+  const proj = { id:'p_'+Date.now(), name:name.trim() };
+  state.projects.push(proj);
+  state.activeProjectId = proj.id;
+  saveProjects();
+  renderProjects();
+}
+function selectProject(id){
+  state.activeProjectId = (state.activeProjectId === id) ? null : id;
+  renderProjects();
+}
+function removeProject(id, ev){
+  ev.stopPropagation();
+  state.projects = state.projects.filter(p=>p.id!==id);
+  if(state.activeProjectId === id) state.activeProjectId = null;
+  saveProjects();
+  renderProjects();
+}
+function renderProjects(){
+  const el = document.getElementById('projectList');
+  if(!state.projects.length){
+    el.innerHTML = `<div class="side-empty">No projects yet — tap + to create one.</div>`;
+    return;
+  }
+  el.innerHTML = state.projects.map(p => `
+    <div class="project-item ${p.id===state.activeProjectId?'active':''}" onclick="selectProject('${p.id}')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+      <span class="proj-label">${escapeHtml(p.name)}</span>
+      <button class="proj-remove" title="Delete project" onclick="removeProject('${p.id}', event)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`).join('');
+}
+
+/* ---------- persisted chat history (sidebar) ---------- */
+function chatIcon(){
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+}
+function renderChatList(){
+  const root = document.getElementById('chatListRoot');
+  const q = (document.getElementById('chatSearchInput')?.value || '').trim().toLowerCase();
+  let chats = state.chats.slice().sort((a,b)=> b.updatedAt - a.updatedAt);
+  if(q) chats = chats.filter(c => c.title.toLowerCase().includes(q));
+
+  if(!chats.length){
+    root.innerHTML = `<div class="side-section"><div class="side-empty">${q ? 'No chats match your search.' : 'No saved chats yet — start typing below.'}</div></div>`;
+    return;
+  }
+
+  const now = Date.now();
+  const oneDay = 86400000;
+  const groups = { Today:[], 'Previous 7 days':[], Older:[] };
+  chats.forEach(c=>{
+    const age = now - c.updatedAt;
+    if(age < oneDay) groups['Today'].push(c);
+    else if(age < oneDay*7) groups['Previous 7 days'].push(c);
+    else groups['Older'].push(c);
+  });
+
+  root.innerHTML = Object.entries(groups).filter(([,list])=>list.length).map(([label, list]) => `
+    <div class="side-section">
+      <div class="side-section-head"><span>${label}</span></div>
+      ${list.map(c => `
+        <div class="chat-item ${c.id===state.currentChatId?'active':''}" onclick="openChat('${c.id}')">
+          ${chatIcon()}
+          <span class="chat-item-label">${escapeHtml(c.title)}</span>
+          <button class="chat-remove" title="Delete chat" onclick="removeChat('${c.id}', event)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+function openChat(id){
+  const chat = state.chats.find(c=>c.id===id);
+  if(!chat) return;
+  state.currentChatId = id;
+  state.messages = chat.messages.map(m=>({...m, attachments:m.attachments||[]}));
+  state.attachments = [];
+  renderAttachChips();
+  document.getElementById('hero').style.display='none';
+  document.getElementById('suggestions').style.display='none';
+  const thread = document.getElementById('thread');
+  thread.style.display='flex';
+  thread.innerHTML='';
+  state.messages.forEach(m=>{
+    if(m.role==='user') appendUserBubble(m.text, m.attachments||[]);
+    else appendAssistantBubble(m.text);
+  });
+  thread.scrollTop = thread.scrollHeight;
+  toggleSidebar(false);
+  renderChatList();
+}
+function removeChat(id, ev){
+  ev.stopPropagation();
+  state.chats = state.chats.filter(c=>c.id!==id);
+  if(state.currentChatId === id) newChat();
+  saveChats();
+  renderChatList();
+}
+function persistCurrentChat(){
+  if(!state.currentChatId){
+    const firstUserMsg = state.messages.find(m=>m.role==='user');
+    const title = (firstUserMsg?.text || 'New conversation').slice(0,60);
+    const chat = { id:'c_'+Date.now(), title, messages:[], createdAt:Date.now(), updatedAt:Date.now(), projectId:state.activeProjectId };
+    state.chats.push(chat);
+    state.currentChatId = chat.id;
+  }
+  const chat = state.chats.find(c=>c.id===state.currentChatId);
+  chat.messages = state.messages;
+  chat.updatedAt = Date.now();
+  saveChats();
+  renderChatList();
 }
 
 /* ---------- send / render messages ---------- */
@@ -993,6 +1253,7 @@ function sendMessage(){
   const userAttachments = [...state.attachments];
   state.messages.push({role:'user', text, attachments:userAttachments});
   appendUserBubble(text, userAttachments);
+  persistCurrentChat();
 
   state.attachments = [];
   renderAttachChips();
@@ -1003,11 +1264,12 @@ function sendMessage(){
   const content = document.getElementById('content');
   content.scrollTop = content.scrollHeight;
 
-  callModel(state.messages, state.agent, THINK_LEVELS[state.thinkIndex])
+  callModel(state.messages, state.agent, THINK_LEVELS[state.thinkIndex], state.webSearchOn, state.language)
     .then(reply => {
       replaceTypingWithText(thinkingId, reply);
       state.messages.push({role:'assistant', text:reply});
       content.scrollTop = content.scrollHeight;
+      persistCurrentChat();
     });
 }
 
@@ -1034,7 +1296,7 @@ function appendAssistantTyping(){
       <span style="width:6px;height:6px;border-radius:50%;background:${state.agent.color};display:block;"></span>
     </div>
     <div class="msg-body">
-      <div class="msg-meta"><span class="agent-dot" style="background:${state.agent.color}"></span>${state.agent.name} · ${THINK_LEVELS[state.thinkIndex]} thinking</div>
+      <div class="msg-meta"><span class="agent-dot" style="background:${state.agent.color}"></span>${state.agent.name} · ${THINK_LEVELS[state.thinkIndex]} thinking${state.webSearchOn ? ' · 🌐 searching the web' : ''}</div>
       <div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>
     </div>`;
   thread.appendChild(div);
@@ -1044,6 +1306,22 @@ function replaceTypingWithText(id, text){
   const el = document.getElementById(id);
   if(!el) return;
   el.querySelector('.msg-bubble').innerHTML = escapeHtml(text).replace(/\n/g,'<br>');
+}
+function appendAssistantBubble(text){
+  // Renders a saved assistant message instantly (no typing animation) —
+  // used when re-opening a chat loaded from history.
+  const thread = document.getElementById('thread');
+  const div = document.createElement('div');
+  div.className='msg assistant';
+  div.innerHTML = `
+    <div class="msg-avatar">
+      <span style="width:6px;height:6px;border-radius:50%;background:${state.agent.color};display:block;"></span>
+    </div>
+    <div class="msg-body">
+      <div class="msg-meta"><span class="agent-dot" style="background:${state.agent.color}"></span>${state.agent.name}</div>
+      <div class="msg-bubble">${escapeHtml(text).replace(/\n/g,'<br>')}</div>
+    </div>`;
+  thread.appendChild(div);
 }
 function escapeHtml(s){
   const d = document.createElement('div');
@@ -1057,19 +1335,39 @@ function escapeHtml(s){
    so adding a model in the library is all it takes to use it here —
    no per-model code changes needed.
    ========================================================= */
-async function callModel(messages, agent, thinkLevel){
+const LANGUAGE_INSTRUCTIONS = {
+  // 'auto' — no forced instruction; most current models (including the
+  // ones in DEFAULT_AGENTS) understand and can reply in Malayalam on
+  // their own if the user writes in Malayalam.
+  ml: 'Respond only in Malayalam (മലയാളം) using Malayalam script, regardless of what language the user writes in. Keep code, commands, and technical identifiers in their original form.',
+  en: 'Respond only in English, regardless of what language the user writes in.',
+};
+
+async function callModel(messages, agent, thinkLevel, webSearch, language){
   try{
+    const chatMessages = messages.map(m=>({role:m.role, content:m.text}));
+    const langInstruction = LANGUAGE_INSTRUCTIONS[language];
+    if(langInstruction){
+      chatMessages.unshift({ role:'system', content: langInstruction });
+    }
+    const body = {
+      model: agent.id, // OpenRouter model slug, e.g. 'nvidia/nemotron-3-super-120b-a12b:free'
+      reasoning: { effort: thinkLevel.toLowerCase() }, // supported by reasoning-capable models; ignored otherwise
+      messages: chatMessages
+    };
+    if(webSearch){
+      // OpenRouter server-side web search tool — the model decides when to
+      // actually search, then answers using live results. Requires a model
+      // that supports tool calling; not every free model does.
+      body.tools = [{ type:'openrouter:web_search', parameters:{ max_results:5 } }];
+    }
     const res = await fetch('/api/chat', {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         'x-access-code': localStorage.getItem('freeai_access_code') || ''
       },
-      body: JSON.stringify({
-        model: agent.id, // OpenRouter model slug, e.g. 'nvidia/nemotron-3-super-120b-a12b:free'
-        reasoning: { effort: thinkLevel.toLowerCase() }, // supported by reasoning-capable models; ignored otherwise
-        messages: messages.map(m=>({role:m.role, content:m.text}))
-      })
+      body: JSON.stringify(body)
     });
     if(res.status===401){
       localStorage.removeItem('freeai_access_code');
@@ -1078,6 +1376,9 @@ async function callModel(messages, agent, thinkLevel){
     }
     if(!res.ok){
       const errText = await res.text().catch(()=> '');
+      if(webSearch && /tool/i.test(errText)){
+        return `This model doesn't support the web search tool. Turn off the search toggle, or switch to a model with tool-calling support (most current flagship models have it), then try again.`;
+      }
       return `The proxy returned an error (${res.status}). ${errText.slice(0,200)}\n\nIf you're testing by opening this file directly in a browser (not deployed on Vercel yet), this is expected — /api/chat only works once it's deployed.`;
     }
     const data = await res.json();
@@ -1194,15 +1495,12 @@ function addAgentFromLibrary(id, name){
   );
 }
 
-/* ---------- greeting by time of day ---------- */
-function setGreeting(){
-  const h = new Date().getHours();
-  const word = h<12 ? 'Morning' : h<17 ? 'Afternoon' : h<21 ? 'Evening' : 'Night';
-  document.getElementById('greeting').innerHTML = `${word}, <span>Sarath Sreekumar</span>`;
-}
-
 /* ---------- init ---------- */
-setGreeting();
+loadPersisted();
+applyTheme(state.theme);
+applyLanguageUI();
+renderProjects();
+renderChatList();
 updateComposerButtons();
 </script>
 </body>
