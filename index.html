@@ -1960,20 +1960,16 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
     stream: true // ask the proxy to stream tokens back as they're generated
   };
   if(webSearch){
-    // OpenRouter's native web-search augmentation. This is a `plugins`
-    // entry, not a `tools` entry — `tools` is for model-side function
-    // calling, which most free/open-weight models don't support, and
-    // "openrouter:web_search" was never a real tool type (it was
-    // silently ignored, which is why answers looked unsearched and the
-    // model sometimes hallucinated citation-looking text instead).
-    // The plugin approach runs server-side on OpenRouter regardless of
-    // whether the model itself supports tool calling.
-    // max_results is 3 rather than the default 5 — search itself is an
-    // extra network round-trip before the model can start answering, and
-    // fewer results means less context to read before the first token,
-    // so this trims real latency while still giving solid grounding and
-    // a handful of citations.
-    body.plugins = [{ id:'web', max_results:3 }];
+    // We used to ask OpenRouter's own 'web' plugin to do this
+    // (body.plugins = [{id:'web'}]) — but that plugin bills against
+    // OpenRouter credits, which is exactly what threw the 402
+    // "Insufficient credits" error. Free/no-cost OpenRouter models don't
+    // waive that charge; it's a separate line item.
+    // Instead, chat.js now does the searching itself server-side, using
+    // free-tier search APIs (Tavily / Brave / SearXNG, tried in that
+    // order) and stuffs the results into the prompt as context. We just
+    // flag the request here; no OpenRouter billing involved.
+    body.webSearch = true;
   }
 
   let res;
@@ -1999,8 +1995,8 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
   }
   if(!res.ok || !res.body){
     const errText = await res.text().catch(()=> '');
-    if(webSearch && /plugin|web/i.test(errText)){
-      return { text: `The web search plugin request failed. Turn off the search toggle and try again, or check the proxy error: ${errText.slice(0,200)}`, sources: [] };
+    if(webSearch && /search/i.test(errText)){
+      return { text: `The web search step failed. Turn off the search toggle and try again, or check the proxy error: ${errText.slice(0,200)}`, sources: [] };
     }
     return { text: `The proxy returned an error (${res.status}). ${errText.slice(0,200)}\n\nIf you're testing by opening this file directly in a browser (not deployed on Vercel yet), this is expected — /api/chat only works once it's deployed.`, sources: [] };
   }
@@ -2032,6 +2028,18 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
         if(!payload || payload === '[DONE]') continue;
         try{
           const json = JSON.parse(payload);
+          if(json?.freeai_sources){
+            // Our own server-side search results (chat.js), sent as one
+            // frame before OpenRouter's stream starts — not part of the
+            // OpenAI-shaped payload, so it's handled separately here.
+            for(const s of json.freeai_sources){
+              if(s?.url && !seenUrls.has(s.url)){
+                seenUrls.add(s.url);
+                sources.push({ url: s.url, title: s.title || '' });
+              }
+            }
+            continue;
+          }
           const deltaObj = json?.choices?.[0]?.delta;
           const delta = deltaObj?.content || '';
           if(delta){
