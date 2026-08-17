@@ -413,12 +413,17 @@
     background:var(--bg-elev-3);
     color:var(--text-faint);
     transition:background .15s, color .15s, transform .1s;
+    flex-shrink:0;
   }
   .send-btn.ready{background:var(--accent); color:#241800;}
   .send-btn.ready:hover{transform:scale(1.05);}
   .send-btn:active{transform:scale(0.94);}
 
-  /* Agent selector */
+  /* Agent selector — min-width:0 + flex-shrink:1 lets this pill shrink
+     and truncate instead of forcing the row to overflow, which is what
+     was pushing the search/mic/send icons off-screen (or fully out of
+     view) whenever a model's display name was long, especially on
+     narrow phones. */
   .agent-btn{
     display:flex; align-items:center; gap:7px;
     padding:6px 10px 6px 8px;
@@ -428,10 +433,16 @@
     font-weight:600;
     color:var(--text);
     background:var(--bg-elev-2);
+    flex-shrink:1;
+    min-width:0;
+    max-width:180px;
   }
   .agent-btn:hover{border-color:#3A3F46;}
   .agent-dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
-  .agent-btn .chev{color:var(--text-faint); margin-left:1px;}
+  .agent-btn .chev{color:var(--text-faint); margin-left:1px; flex-shrink:0;}
+  #agentBtnLabel{
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
+  }
 
   /* Thinking meter */
   .think-meter{
@@ -442,6 +453,7 @@
     background:var(--bg-elev-2);
     cursor:pointer;
     user-select:none;
+    flex-shrink:0;
   }
   .think-label{font-size:11.5px; color:var(--text-dim); font-weight:600; margin-right:2px; font-family:var(--font-mono);}
   .think-bars{display:flex; align-items:flex-end; gap:2.5px; height:13px;}
@@ -620,6 +632,71 @@
   .typing span:nth-child(3){animation-delay:0.3s;}
   @keyframes bounce{0%,60%,100%{transform:translateY(0); opacity:0.5;} 30%{transform:translateY(-4px); opacity:1;}}
 
+  /* Per-message action row — copy / edit / retry, Claude-style. */
+  .msg-actions{
+    display:flex; align-items:center; gap:2px;
+    margin-top:6px;
+  }
+  .msg.user .msg-actions{justify-content:flex-end;}
+  .msg-action-btn{
+    width:26px; height:26px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:6px;
+    color:var(--text-faint);
+    transition:background .15s, color .15s;
+  }
+  .msg-action-btn:hover{background:var(--bg-elev-2); color:var(--text-dim);}
+  .msg-action-btn.copied{color:var(--teal);}
+  .msg-action-btn svg{display:block;}
+
+  /* Inline edit box for a user message */
+  .msg-edit-box{width:100%;}
+  .msg-edit-box textarea{
+    width:100%; min-height:60px; resize:vertical;
+    background:var(--bg-elev); border:1px solid var(--border);
+    border-radius:12px; padding:10px 13px; color:var(--text);
+    font-family:var(--font-body); font-size:14.5px; line-height:1.5; outline:none;
+  }
+  .msg-edit-box textarea:focus{border-color:#3A3F46;}
+  .msg-edit-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:8px;}
+  .msg-edit-actions .btn{padding:7px 14px; font-size:13px;}
+
+  /* Sources — shown under an assistant reply when web search was used,
+     styled like reference cards rather than raw links. */
+  .msg-sources{
+    margin-top:10px; padding-top:10px;
+    border-top:1px solid var(--border-soft);
+  }
+  .msg-sources-label{
+    font-size:11px; font-family:var(--font-mono); color:var(--text-faint);
+    text-transform:uppercase; letter-spacing:0.4px; margin-bottom:7px;
+  }
+  .msg-sources-list{display:flex; flex-direction:column; gap:6px;}
+  .msg-source-link{
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px;
+    background:var(--bg-elev-2); border:1px solid var(--border-soft);
+    border-radius:10px; text-decoration:none;
+  }
+  .msg-source-link:hover{border-color:#3A3F46; background:var(--bg-elev-3);}
+  .msg-source-num{
+    flex-shrink:0; width:16px; height:16px; border-radius:50%;
+    background:var(--bg-elev-3); color:var(--text-faint);
+    font-size:9.5px; font-weight:700; font-family:var(--font-mono);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .msg-source-text{min-width:0; overflow:hidden;}
+  .msg-source-title{
+    display:block;
+    font-size:12.5px; font-weight:600; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .msg-source-domain{
+    display:block;
+    font-size:11px; color:var(--text-faint);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
   /* Settings modal */
   .modal-overlay{
     position:fixed; inset:0; background:rgba(0,0,0,0.55);
@@ -727,6 +804,18 @@
     .msg-bubble{font-size:14px; padding:10px 13px;}
     .content{padding:0 14px;}
     .composer-dock{padding:0 14px 16px 14px;}
+    /* Tighten the composer control row so it lays out the same way on
+       every phone instead of varying by name length / screen width. */
+    .composer-row{gap:6px;}
+    .composer-right{gap:5px;}
+    .agent-btn{max-width:104px; padding:6px 8px 6px 7px; font-size:12px;}
+    .think-meter{padding:5px 7px;}
+    .icon-btn, .send-btn{width:30px; height:30px;}
+  }
+  @media (max-width:380px){
+    .agent-btn{max-width:78px;}
+    .think-label{display:none;}
+    .think-meter{padding:6px;}
   }
   .scrim{
     position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:55; display:none;
@@ -982,13 +1071,22 @@ let colorCursor = DEFAULT_AGENTS.length;
 
 const THINK_LEVELS = ['Low','Medium','High','Extra','Max'];
 
+// Claude-style line icons used in the per-message action row.
+const ICON_COPY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+const ICON_EDIT = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+const ICON_RETRY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
+const ICON_CHECK = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
 let state = {
   agents: DEFAULT_AGENTS.slice(),
   agent: DEFAULT_AGENTS[1],
   thinkIndex: 1, // Medium
   attachments: [],
   messages: [],
-  webSearchOn: false,
+  // Defaults to ON so every message gets web-grounded answers without
+  // having to flip the toggle each time. Once the user changes it, their
+  // choice is remembered (localStorage) instead of resetting on reload.
+  webSearchOn: localStorage.getItem('freeai_websearch') !== '0',
   libraryModels: null, // cached fetch from OpenRouter
   theme: localStorage.getItem('freeai_theme') || 'dark',
   language: localStorage.getItem('freeai_language') || 'auto',
@@ -1131,6 +1229,10 @@ function selectThink(i){
 }
 function toggleWebSearch(){
   state.webSearchOn = !state.webSearchOn;
+  localStorage.setItem('freeai_websearch', state.webSearchOn ? '1' : '0');
+  applyWebSearchUI();
+}
+function applyWebSearchUI(){
   const btn = document.getElementById('webSearchBtn');
   btn.classList.toggle('active', state.webSearchOn);
   btn.title = state.webSearchOn ? 'Web search is ON for your next message' : 'Search the web before answering';
@@ -1387,9 +1489,9 @@ function openChat(id){
   const thread = document.getElementById('thread');
   thread.style.display='flex';
   thread.innerHTML='';
-  state.messages.forEach(m=>{
-    if(m.role==='user') appendUserBubble(m.text, m.attachments||[]);
-    else appendAssistantBubble(m.text);
+  state.messages.forEach((m, idx)=>{
+    if(m.role==='user') appendUserBubble(m.text, m.attachments||[], idx);
+    else appendAssistantBubble(m.text, idx, m.sources);
   });
   thread.scrollTop = thread.scrollHeight;
   toggleSidebar(false);
@@ -1422,22 +1524,36 @@ function sendMessage(){
   const input = document.getElementById('composerInput');
   const text = input.value.trim();
   if(!text && state.attachments.length===0) return;
+  const userAttachments = [...state.attachments];
+
+  submitUserText(text, userAttachments);
+
+  state.attachments = [];
+  renderAttachChips();
+  input.value='';
+  autoResize(input);
+}
+
+// Shared by sendMessage() and saveEditMsg() — appends a user message and
+// kicks off the assistant's reply. idx is implied by state.messages.length.
+function submitUserText(text, attachments){
+  if(!text && (!attachments || attachments.length===0)) return;
 
   document.getElementById('hero').style.display='none';
   document.getElementById('suggestions').style.display='none';
   const thread = document.getElementById('thread');
   thread.style.display='flex';
 
-  const userAttachments = [...state.attachments];
-  state.messages.push({role:'user', text, attachments:userAttachments});
-  appendUserBubble(text, userAttachments);
+  state.messages.push({role:'user', text, attachments: attachments||[]});
+  appendUserBubble(text, attachments||[], state.messages.length-1);
   persistCurrentChat();
 
-  state.attachments = [];
-  renderAttachChips();
-  input.value='';
-  autoResize(input);
+  runAssistantTurn();
+}
 
+// Streams a fresh assistant reply for whatever's currently in
+// state.messages — used both for a normal send and for "retry".
+function runAssistantTurn(){
   const thinkingId = appendAssistantTyping();
   const content = document.getElementById('content');
   content.scrollTop = content.scrollHeight;
@@ -1449,15 +1565,15 @@ function sendMessage(){
       updateStreamingBubble(thinkingId, textSoFar, false);
       content.scrollTop = content.scrollHeight;
     })
-    .then(reply => {
-      updateStreamingBubble(thinkingId, reply, true);
-      state.messages.push({role:'assistant', text:reply});
+    .then(({text, sources}) => {
+      state.messages.push({role:'assistant', text, sources});
+      updateStreamingBubble(thinkingId, text, true, sources, state.messages.length-1);
       content.scrollTop = content.scrollHeight;
       persistCurrentChat();
     });
 }
 
-function appendUserBubble(text, attachments){
+function appendUserBubble(text, attachments, idx){
   const thread = document.getElementById('thread');
   const chipsHtml = attachments.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; justify-content:flex-end;">${
     attachments.map(a=>`<span class="chip-badge" style="background:${FILE_META[a.type].color}; font-size:9px;">${FILE_META[a.type].label}</span>`).join('')
@@ -1466,6 +1582,7 @@ function appendUserBubble(text, attachments){
   div.className='msg user';
   div.innerHTML = `<div class="msg-bubble">${chipsHtml}${escapeHtml(text)}</div>`;
   thread.appendChild(div);
+  renderMsgActions(div, 'user', idx);
 }
 
 let typingCounter = 0;
@@ -1486,18 +1603,19 @@ function appendAssistantTyping(){
   thread.appendChild(div);
   return id;
 }
-function replaceTypingWithText(id, text){
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.querySelector('.msg-bubble').innerHTML = renderMarkdown(text);
-}
-function updateStreamingBubble(id, textSoFar, done){
+function updateStreamingBubble(id, textSoFar, done, sources, idx){
   const el = document.getElementById(id);
   if(!el) return;
   const bubble = el.querySelector('.msg-bubble');
   bubble.innerHTML = renderMarkdown(textSoFar) + (done ? '' : '<span class="stream-cursor"></span>');
+  if(done){
+    const body = el.querySelector('.msg-body');
+    renderSourcesInto(body, sources);
+    renderMsgActions(body, 'assistant', idx);
+    el.removeAttribute('id'); // was only needed to target it while streaming
+  }
 }
-function appendAssistantBubble(text){
+function appendAssistantBubble(text, idx, sources){
   // Renders a saved assistant message instantly (no typing animation) —
   // used when re-opening a chat loaded from history.
   const thread = document.getElementById('thread');
@@ -1512,7 +1630,132 @@ function appendAssistantBubble(text){
       <div class="msg-bubble">${renderMarkdown(text)}</div>
     </div>`;
   thread.appendChild(div);
+  const body = div.querySelector('.msg-body');
+  renderSourcesInto(body, sources);
+  renderMsgActions(body, 'assistant', idx);
 }
+
+/* ---------- per-message actions: copy / edit / retry ---------- */
+function renderMsgActions(container, role, idx){
+  if(!container || idx===undefined) return;
+  const div = document.createElement('div');
+  div.className = 'msg-actions';
+  const copyBtn = `<button class="msg-action-btn" title="Copy" onclick="copyMsg(${idx}, this)">${ICON_COPY}</button>`;
+  const secondBtn = role === 'user'
+    ? `<button class="msg-action-btn" title="Edit" onclick="startEditMsg(${idx})">${ICON_EDIT}</button>`
+    : `<button class="msg-action-btn" title="Retry" onclick="retryMsg(${idx})">${ICON_RETRY}</button>`;
+  div.innerHTML = copyBtn + secondBtn;
+  container.appendChild(div);
+}
+
+function copyMsg(idx, btnEl){
+  const m = state.messages[idx];
+  if(!m) return;
+  const flash = ()=>{
+    const original = btnEl.innerHTML;
+    btnEl.innerHTML = ICON_CHECK;
+    btnEl.classList.add('copied');
+    setTimeout(()=>{ btnEl.innerHTML = original; btnEl.classList.remove('copied'); }, 1200);
+  };
+  const text = m.text || '';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(flash).catch(()=>fallbackCopy(text, flash));
+  }else{
+    fallbackCopy(text, flash);
+  }
+}
+function fallbackCopy(text, cb){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if(cb) cb();
+}
+
+function startEditMsg(idx){
+  const thread = document.getElementById('thread');
+  const msgEl = thread.children[idx];
+  if(!msgEl) return;
+  const bubble = msgEl.querySelector('.msg-bubble');
+  const actions = msgEl.querySelector('.msg-actions');
+  const original = state.messages[idx].text || '';
+  bubble.style.display = 'none';
+  if(actions) actions.style.display = 'none';
+  const editBox = document.createElement('div');
+  editBox.className = 'msg-edit-box';
+  editBox.innerHTML = `
+    <textarea id="editArea-${idx}">${escapeHtml(original)}</textarea>
+    <div class="msg-edit-actions">
+      <button class="btn ghost" onclick="cancelEditMsg(${idx})">Cancel</button>
+      <button class="btn primary" onclick="saveEditMsg(${idx})">Save &amp; submit</button>
+    </div>`;
+  msgEl.insertBefore(editBox, bubble.nextSibling);
+  const ta = document.getElementById(`editArea-${idx}`);
+  ta.focus();
+  ta.selectionStart = ta.value.length;
+  autoResize(ta);
+}
+function cancelEditMsg(idx){
+  const thread = document.getElementById('thread');
+  const msgEl = thread.children[idx];
+  if(!msgEl) return;
+  const editBox = msgEl.querySelector('.msg-edit-box');
+  if(editBox) editBox.remove();
+  const bubble = msgEl.querySelector('.msg-bubble');
+  const actions = msgEl.querySelector('.msg-actions');
+  if(bubble) bubble.style.display='';
+  if(actions) actions.style.display='';
+}
+function saveEditMsg(idx){
+  const ta = document.getElementById(`editArea-${idx}`);
+  if(!ta) return;
+  const newText = ta.value.trim();
+  if(!newText) return;
+  const attachments = state.messages[idx].attachments || [];
+
+  // Editing a message discards it and everything after it, then
+  // resubmits — same as Claude's behaviour.
+  state.messages = state.messages.slice(0, idx);
+  const thread = document.getElementById('thread');
+  while(thread.children.length > idx) thread.removeChild(thread.lastChild);
+
+  submitUserText(newText, attachments);
+}
+
+function retryMsg(idx){
+  // idx is an assistant message — drop it (and anything after) and
+  // regenerate from the same preceding messages.
+  state.messages = state.messages.slice(0, idx);
+  const thread = document.getElementById('thread');
+  while(thread.children.length > idx) thread.removeChild(thread.lastChild);
+  const content = document.getElementById('content');
+  content.scrollTop = content.scrollHeight;
+  runAssistantTurn();
+}
+
+/* ---------- sources / citations from web search ---------- */
+function renderSourcesInto(container, sources){
+  if(!container || !sources || !sources.length) return;
+  const div = document.createElement('div');
+  div.className = 'msg-sources';
+  const rows = sources.map((s, i)=>{
+    let domain = s.url;
+    try{ domain = new URL(s.url).hostname.replace(/^www\./,''); }catch(e){}
+    return `<a class="msg-source-link" href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">
+      <span class="msg-source-num">${i+1}</span>
+      <span class="msg-source-text">
+        <span class="msg-source-title">${escapeHtml(s.title || domain)}</span>
+        <span class="msg-source-domain">${escapeHtml(domain)}</span>
+      </span>
+    </a>`;
+  }).join('');
+  div.innerHTML = `<div class="msg-sources-label">Sources</div><div class="msg-sources-list">${rows}</div>`;
+  container.appendChild(div);
+}
+
 function escapeHtml(s){
   const d = document.createElement('div');
   d.textContent = s;
@@ -1582,20 +1825,20 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
       body: JSON.stringify(body)
     });
   }catch(err){
-    return `Couldn't reach the proxy (${err.message}). If you're opening this file locally, /api/chat won't work until it's deployed on Vercel — that's expected at this stage.`;
+    return { text: `Couldn't reach the proxy (${err.message}). If you're opening this file locally, /api/chat won't work until it's deployed on Vercel — that's expected at this stage.`, sources: [] };
   }
 
   if(res.status===401){
     localStorage.removeItem('freeai_access_code');
     showLockScreen('That code stopped working. Enter it again.');
-    return "Access code needed — enter it in the screen that just appeared.";
+    return { text: "Access code needed — enter it in the screen that just appeared.", sources: [] };
   }
   if(!res.ok || !res.body){
     const errText = await res.text().catch(()=> '');
     if(webSearch && /plugin|web/i.test(errText)){
-      return `The web search plugin request failed. Turn off the search toggle and try again, or check the proxy error: ${errText.slice(0,200)}`;
+      return { text: `The web search plugin request failed. Turn off the search toggle and try again, or check the proxy error: ${errText.slice(0,200)}`, sources: [] };
     }
-    return `The proxy returned an error (${res.status}). ${errText.slice(0,200)}\n\nIf you're testing by opening this file directly in a browser (not deployed on Vercel yet), this is expected — /api/chat only works once it's deployed.`;
+    return { text: `The proxy returned an error (${res.status}). ${errText.slice(0,200)}\n\nIf you're testing by opening this file directly in a browser (not deployed on Vercel yet), this is expected — /api/chat only works once it's deployed.`, sources: [] };
   }
 
   // Parse the SSE stream OpenRouter forwards (same "data: {...}" format
@@ -1605,6 +1848,11 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
   const decoder = new TextDecoder();
   let buffer = '';
   let fullText = '';
+  // Web-search plugin results come back as OpenAI-style `url_citation`
+  // annotations on the delta — collect and dedupe them by URL so they can
+  // be rendered as a Claude-style "Sources" list once the reply is done.
+  const sources = [];
+  const seenUrls = new Set();
   try{
     while(true){
       const { value, done } = await reader.read();
@@ -1619,18 +1867,29 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
         if(!payload || payload === '[DONE]') continue;
         try{
           const json = JSON.parse(payload);
-          const delta = json?.choices?.[0]?.delta?.content || '';
+          const deltaObj = json?.choices?.[0]?.delta;
+          const delta = deltaObj?.content || '';
           if(delta){
             fullText += delta;
             if(onDelta) onDelta(fullText);
+          }
+          const anns = deltaObj?.annotations || json?.choices?.[0]?.message?.annotations;
+          if(anns && anns.length){
+            for(const a of anns){
+              const uc = a?.url_citation;
+              if(uc?.url && !seenUrls.has(uc.url)){
+                seenUrls.add(uc.url);
+                sources.push({ url: uc.url, title: uc.title || '' });
+              }
+            }
           }
         }catch(e){ /* keep-alive / partial line — ignore and continue */ }
       }
     }
   }catch(err){
-    if(!fullText) return `Stream interrupted (${err.message}).`;
+    if(!fullText) return { text: `Stream interrupted (${err.message}).`, sources };
   }
-  return fullText || 'No response received from the model.';
+  return { text: fullText || 'No response received from the model.', sources };
 }
 
 /* ---------- access lock screen ---------- */
@@ -1747,6 +2006,7 @@ applyLanguageUI();
 renderProjects();
 renderChatList();
 updateComposerButtons();
+applyWebSearchUI();
 if(window.matchMedia('(min-width:821px)').matches && localStorage.getItem('freeai_sidebar_collapsed') === '1'){
   toggleSidebarCollapse(true);
 }
