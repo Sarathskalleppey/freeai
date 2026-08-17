@@ -647,6 +647,7 @@
   }
   .msg-action-btn:hover{background:var(--bg-elev-2); color:var(--text-dim);}
   .msg-action-btn.copied{color:var(--teal);}
+  .msg-action-btn.reading{background:var(--accent-soft); color:var(--accent);}
   .msg-action-btn svg{display:block;}
 
   /* Inline edit box for a user message */
@@ -713,6 +714,7 @@
   .modal p.sub{font-size:12.5px; color:var(--text-faint); margin-bottom:18px; line-height:1.5;}
   .field{margin-bottom:14px;}
   .field label{font-size:11.5px; color:var(--text-dim); font-weight:600; display:block; margin-bottom:6px; font-family:var(--font-mono); letter-spacing:0.3px;}
+  .field-hint{font-size:11.5px; color:var(--text-faint); margin-top:6px; line-height:1.4;}
   .field input{
     width:100%; padding:9px 11px; background:var(--bg-elev-2);
     border:1px solid var(--border); border-radius:var(--radius-sm);
@@ -737,6 +739,7 @@
   .theme-swatch.system{background:conic-gradient(#0B0D10 0 50%, #FFFFFF 50% 100%);}
   .theme-swatch.classic-blue{background:linear-gradient(180deg,#0B2447 40%,#FFFFFF 40%);}
   .lang-opt.selected{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+  .mic-lang-opt.selected{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
   .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
   .btn{padding:8px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:600;}
   .btn.ghost{color:var(--text-dim);}
@@ -1028,6 +1031,15 @@
         <button class="theme-opt lang-opt" id="lang-opt-ml" onclick="setLanguage('ml')" style="grid-column:1 / -1;">മലയാളം (Malayalam)</button>
       </div>
     </div>
+    <div class="field">
+      <label>Voice input language (mic)</label>
+      <div class="theme-grid" id="micLangGrid">
+        <button class="theme-opt mic-lang-opt" id="mic-lang-opt-auto" onclick="setMicLanguage('auto')">Auto (browser default)</button>
+        <button class="theme-opt mic-lang-opt" id="mic-lang-opt-en" onclick="setMicLanguage('en')">English</button>
+        <button class="theme-opt mic-lang-opt" id="mic-lang-opt-ml" onclick="setMicLanguage('ml')" style="grid-column:1 / -1;">മലയാളം (Malayalam)</button>
+      </div>
+      <div class="field-hint">Set this to Malayalam for accurate speech-to-text when you speak Malayalam — "Auto" uses your device's system language, which usually isn't Malayalam even if your replies are.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn primary" onclick="closeSettings()">Done</button>
     </div>
@@ -1076,6 +1088,10 @@ const ICON_COPY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const ICON_EDIT = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const ICON_RETRY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
 const ICON_CHECK = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const ICON_SPEAKER = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>`;
+const ICON_STOP = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
+const ICON_SEND = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+const ICON_STOP_SQUARE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>`;
 
 let state = {
   agents: DEFAULT_AGENTS.slice(),
@@ -1090,6 +1106,7 @@ let state = {
   libraryModels: null, // cached fetch from OpenRouter
   theme: localStorage.getItem('freeai_theme') || 'dark',
   language: localStorage.getItem('freeai_language') || 'auto',
+  micLanguage: localStorage.getItem('freeai_miclang') || 'auto',
   chats: [],            // persisted chat history, loaded below
   currentChatId: null,
   projects: [],         // persisted projects, loaded below
@@ -1152,6 +1169,20 @@ function setLanguage(lang){
 function applyLanguageUI(){
   document.querySelectorAll('.lang-opt[id^="lang-opt-"]').forEach(el=>{
     el.classList.toggle('selected', el.id === 'lang-opt-'+state.language);
+  });
+}
+
+/* ---------- voice input (mic) language — independent of response
+   language, since a lot of people reply in English but speak Malayalam,
+   or vice versa. */
+function setMicLanguage(lang){
+  state.micLanguage = lang;
+  localStorage.setItem('freeai_miclang', lang);
+  applyMicLanguageUI();
+}
+function applyMicLanguageUI(){
+  document.querySelectorAll('.mic-lang-opt[id^="mic-lang-opt-"]').forEach(el=>{
+    el.classList.toggle('selected', el.id === 'mic-lang-opt-'+state.micLanguage);
   });
 }
 
@@ -1257,9 +1288,10 @@ function toggleMic(){
   const baseText = input.value.trim() ? input.value.trim() + ' ' : '';
 
   micRecognition = new SpeechRecognitionCtor();
-  micRecognition.lang = state.language === 'ml' ? 'ml-IN' : (state.language === 'en' ? 'en-US' : (navigator.language || 'en-US'));
+  micRecognition.lang = state.micLanguage === 'ml' ? 'ml-IN' : (state.micLanguage === 'en' ? 'en-US' : (navigator.language || 'en-US'));
   micRecognition.interimResults = true;
   micRecognition.continuous = true;
+  micRecognition.maxAlternatives = 3;
 
   micRecognition.onstart = ()=>{
     micRecording = true;
@@ -1285,6 +1317,77 @@ function toggleMic(){
     micBtn.title = 'Voice input';
   };
   micRecognition.start();
+}
+
+/* ---------- read aloud (Web Speech Synthesis) ----------
+   Auto-detects Malayalam script in the reply text and picks a matching
+   installed voice, instead of always reading in the device's default
+   language — this is what makes "listening" actually work well for
+   Malayalam replies even when the browser's system language is English. */
+if('speechSynthesis' in window){
+  // Voice lists load asynchronously in some browsers; warm the cache so
+  // the first tap of "Read aloud" doesn't come back empty-handed.
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.getVoices(); };
+}
+let currentReadUtterance = null;
+let currentReadBtn = null;
+
+function pickVoiceForText(text){
+  if(!('speechSynthesis' in window)) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  if(!voices.length) return null;
+  const isMalayalam = /[\u0D00-\u0D7F]/.test(text);
+  const targetPrefix = isMalayalam ? 'ml' : (state.language === 'ml' ? 'ml' : 'en');
+  return voices.find(v => v.lang && v.lang.toLowerCase().startsWith(targetPrefix)) || null;
+}
+
+function toggleReadAloud(idx, btnEl){
+  if(!('speechSynthesis' in window)){
+    alert('Reading aloud needs speech synthesis support (Chrome, Edge, or Safari work best).');
+    return;
+  }
+  const synth = window.speechSynthesis;
+
+  // Tapping the button that's currently reading stops it.
+  if(currentReadBtn === btnEl && (synth.speaking || synth.pending)){
+    synth.cancel();
+    return; // utterance.onend/onerror resets the icon
+  }
+  // Switching to a different message — stop whatever was playing first.
+  if(synth.speaking || synth.pending) synth.cancel();
+
+  const m = state.messages[idx];
+  const text = (m && m.text || '').trim();
+  if(!text) return;
+
+  const utter = new SpeechSynthesisUtterance(text);
+  const voice = pickVoiceForText(text);
+  if(voice){
+    utter.voice = voice;
+    utter.lang = voice.lang;
+  }else{
+    utter.lang = /[\u0D00-\u0D7F]/.test(text) ? 'ml-IN' : 'en-US';
+  }
+  utter.rate = 1;
+
+  const reset = ()=>{
+    btnEl.innerHTML = ICON_SPEAKER;
+    btnEl.title = 'Read aloud';
+    btnEl.classList.remove('reading');
+    if(currentReadBtn === btnEl){ currentReadUtterance = null; currentReadBtn = null; }
+  };
+  utter.onstart = ()=>{
+    btnEl.innerHTML = ICON_STOP;
+    btnEl.title = 'Stop reading';
+    btnEl.classList.add('reading');
+  };
+  utter.onend = reset;
+  utter.onerror = reset;
+
+  currentReadUtterance = utter;
+  currentReadBtn = btnEl;
+  synth.speak(utter);
 }
 
 /* ---------- panels ---------- */
@@ -1350,7 +1453,9 @@ function removeAttachment(i){
 function autoResize(el){
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-  document.getElementById('sendBtn').classList.toggle('ready', el.value.trim().length>0 || state.attachments.length>0);
+  if(!isGenerating){
+    document.getElementById('sendBtn').classList.toggle('ready', el.value.trim().length>0 || state.attachments.length>0);
+  }
 }
 function handleKeydown(e){
   if(e.key==='Enter' && !e.shiftKey){
@@ -1558,19 +1663,56 @@ function runAssistantTurn(){
   const content = document.getElementById('content');
   content.scrollTop = content.scrollHeight;
 
+  const signal = beginGenerating();
+
   streamModel(state.messages, state.agent, THINK_LEVELS[state.thinkIndex], state.webSearchOn, state.language,
     (textSoFar)=>{
       // Called as each chunk arrives — text appears progressively instead
       // of waiting for the full reply, which is what makes this feel fast.
       updateStreamingBubble(thinkingId, textSoFar, false);
       content.scrollTop = content.scrollHeight;
-    })
+    }, signal)
     .then(({text, sources}) => {
-      state.messages.push({role:'assistant', text, sources});
-      updateStreamingBubble(thinkingId, text, true, sources, state.messages.length-1);
+      if(!text){
+        // Stopped before anything came back — drop the empty bubble
+        // instead of saving a blank assistant message.
+        const el = document.getElementById(thinkingId);
+        if(el) el.remove();
+      }else{
+        state.messages.push({role:'assistant', text, sources});
+        updateStreamingBubble(thinkingId, text, true, sources, state.messages.length-1);
+        persistCurrentChat();
+      }
       content.scrollTop = content.scrollHeight;
-      persistCurrentChat();
+      endGenerating();
     });
+}
+
+/* ---------- stop generating ---------- */
+let isGenerating = false;
+let activeAbortController = null;
+function beginGenerating(){
+  isGenerating = true;
+  activeAbortController = new AbortController();
+  const btn = document.getElementById('sendBtn');
+  btn.classList.add('ready');
+  btn.onclick = stopGeneration;
+  btn.title = 'Stop generating';
+  btn.innerHTML = ICON_STOP_SQUARE;
+  return activeAbortController.signal;
+}
+function endGenerating(){
+  isGenerating = false;
+  activeAbortController = null;
+  const btn = document.getElementById('sendBtn');
+  btn.onclick = sendMessage;
+  btn.title = 'Send';
+  btn.innerHTML = ICON_SEND;
+  const input = document.getElementById('composerInput');
+  btn.classList.toggle('ready', input.value.trim().length>0 || state.attachments.length>0);
+}
+function stopGeneration(){
+  if(activeAbortController) activeAbortController.abort();
 }
 
 function appendUserBubble(text, attachments, idx){
@@ -1641,10 +1783,14 @@ function renderMsgActions(container, role, idx){
   const div = document.createElement('div');
   div.className = 'msg-actions';
   const copyBtn = `<button class="msg-action-btn" title="Copy" onclick="copyMsg(${idx}, this)">${ICON_COPY}</button>`;
-  const secondBtn = role === 'user'
-    ? `<button class="msg-action-btn" title="Edit" onclick="startEditMsg(${idx})">${ICON_EDIT}</button>`
-    : `<button class="msg-action-btn" title="Retry" onclick="retryMsg(${idx})">${ICON_RETRY}</button>`;
-  div.innerHTML = copyBtn + secondBtn;
+  if(role === 'user'){
+    const editBtn = `<button class="msg-action-btn" title="Edit" onclick="startEditMsg(${idx})">${ICON_EDIT}</button>`;
+    div.innerHTML = copyBtn + editBtn;
+  }else{
+    const listenBtn = `<button class="msg-action-btn" title="Read aloud" onclick="toggleReadAloud(${idx}, this)">${ICON_SPEAKER}</button>`;
+    const retryBtn = `<button class="msg-action-btn" title="Retry" onclick="retryMsg(${idx})">${ICON_RETRY}</button>`;
+    div.innerHTML = copyBtn + listenBtn + retryBtn;
+  }
   container.appendChild(div);
 }
 
@@ -1790,8 +1936,19 @@ const LANGUAGE_INSTRUCTIONS = {
   en: 'Respond only in English, regardless of what language the user writes in.',
 };
 
-async function streamModel(messages, agent, thinkLevel, webSearch, language, onDelta){
-  const chatMessages = messages.map(m=>({role:m.role, content:m.text}));
+async function streamModel(messages, agent, thinkLevel, webSearch, language, onDelta, signal){
+  // Only send the most recent turns to the model. Re-sending the entire
+  // history on every message means the model has to re-process a
+  // growing wall of tokens before it can start replying — that "time to
+  // first token" delay is most of what makes long conversations feel
+  // slower over time. Trimming to the last ~16 turns keeps all the
+  // context that actually matters for the current question while
+  // keeping prefill fast, even in a long-running chat.
+  const MAX_HISTORY_MESSAGES = 32;
+  const recentMessages = messages.length > MAX_HISTORY_MESSAGES
+    ? messages.slice(messages.length - MAX_HISTORY_MESSAGES)
+    : messages;
+  const chatMessages = recentMessages.map(m=>({role:m.role, content:m.text}));
   const langInstruction = LANGUAGE_INSTRUCTIONS[language];
   if(langInstruction){
     chatMessages.unshift({ role:'system', content: langInstruction });
@@ -1811,7 +1968,12 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
     // model sometimes hallucinated citation-looking text instead).
     // The plugin approach runs server-side on OpenRouter regardless of
     // whether the model itself supports tool calling.
-    body.plugins = [{ id:'web', max_results:5 }];
+    // max_results is 3 rather than the default 5 — search itself is an
+    // extra network round-trip before the model can start answering, and
+    // fewer results means less context to read before the first token,
+    // so this trims real latency while still giving solid grounding and
+    // a handful of citations.
+    body.plugins = [{ id:'web', max_results:3 }];
   }
 
   let res;
@@ -1822,9 +1984,11 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
         'Content-Type':'application/json',
         'x-access-code': localStorage.getItem('freeai_access_code') || ''
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     });
   }catch(err){
+    if(err.name === 'AbortError') return { text: '', sources: [] }; // stopped before a response arrived
     return { text: `Couldn't reach the proxy (${err.message}). If you're opening this file locally, /api/chat won't work until it's deployed on Vercel — that's expected at this stage.`, sources: [] };
   }
 
@@ -1853,6 +2017,7 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
   // be rendered as a Claude-style "Sources" list once the reply is done.
   const sources = [];
   const seenUrls = new Set();
+  let aborted = false;
   try{
     while(true){
       const { value, done } = await reader.read();
@@ -1887,8 +2052,14 @@ async function streamModel(messages, agent, thinkLevel, webSearch, language, onD
       }
     }
   }catch(err){
-    if(!fullText) return { text: `Stream interrupted (${err.message}).`, sources };
+    if(err.name === 'AbortError'){
+      // User pressed stop — keep whatever streamed so far, no error noise.
+      aborted = true;
+    }else if(!fullText){
+      return { text: `Stream interrupted (${err.message}).`, sources };
+    }
   }
+  if(aborted) return { text: fullText, sources }; // partial answer stands as final, as-is
   return { text: fullText || 'No response received from the model.', sources };
 }
 
@@ -2007,6 +2178,7 @@ renderProjects();
 renderChatList();
 updateComposerButtons();
 applyWebSearchUI();
+applyMicLanguageUI();
 if(window.matchMedia('(min-width:821px)').matches && localStorage.getItem('freeai_sidebar_collapsed') === '1'){
   toggleSidebarCollapse(true);
 }
